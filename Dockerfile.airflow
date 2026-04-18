@@ -1,0 +1,12 @@
+FROM apache/airflow:2.8.1-python3.11
+
+USER airflow
+COPY requirements.train.txt /tmp/requirements.train.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r /tmp/requirements.train.txt
+
+USER root
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+USER airflow

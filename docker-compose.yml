@@ -1,0 +1,77 @@
+version: "3.8"
+
+# Shared volume: all containers mount /mlflow so they access the same
+# MLflow database and model artifacts without needing remote object storage.
+
+
+services:
+
+  # ── 1. MLflow Tracking Server 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.0
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:////mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. Airflow (SequentialExecutor + SQLite for local dev) 
+  # Production note: swap SequentialExecutor for LocalExecutor + PostgreSQL.
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      # SQLite stored in /tmp — no volume needed, state is ephemeral for local dev
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////tmp/airflow.db
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "local-dev-secret-change-in-prod"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      DATA_PATH: /data/dataset.csv
+      PREDICTIONS_PATH: /data/predictions.csv
+      GIT_PYTHON_REFRESH: quiet
+      PYTHONPATH: /opt/airflow/src
+    volumes:
+      - ./dags:/opt/airflow/dags # DAG files
+      - ./src:/opt/airflow/src # train.py and helpers
+      - ./data:/data # dataset.csv
+      - mlflow_data:/mlflow # shared artifacts with MLflow server
+    entrypoint: [ "/usr/bin/dumb-init", "--", "/entrypoint.sh" ]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
+  # ── 3. FastAPI Prediction Service 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: text-similarity
+      MODEL_STAGE: Production
+      PREDICTIONS_PATH: //data/predictions.csv
+    volumes:
+      - mlflow_data://mlflow # reads artifacts logged by Airflow
+      - ./data://data # stockage des prédictions pour le feedback loop
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
+volumes:
+  mlflow_data: # MLflow DB + model artifacts (shared by all services)

@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# MLflow
+mlruns/
+mlflow.db
+mlartifacts/
+
+# Airflow
+airflow.db
+airflow.cfg
+airflow-webserver.pid
+logs/
+standalone_admin_password.txt
+
+# Data (ne pas versionner les datasets bruts)
+data/*.csv
+!data/.gitkeep
+
+# Docker
+.docker/
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Tmp
+/tmp/
+*.tmp

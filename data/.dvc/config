@@ -1,0 +1,5 @@
+[core]
+    no_scm = True
+    remote = localstore
+['remote "localstore"']
+    url = /data/dvc-store
